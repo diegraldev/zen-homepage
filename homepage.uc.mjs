@@ -11,8 +11,8 @@
 // url bar and hide the open tab. The sidebar itself stays visible.
 // The homepage tab is transient: as soon as another tab is selected,
 // the homepage tab closes itself (unless pinned).
-// Empty tabs (about:newtab / about:blank / about:home) auto-open the
-// homepage, so closing everything lands back on it.
+// Empty tabs (about:newtab / about:blank / about:home, Zen's special
+// zen-empty-tab, or no tabs at all) auto-open the homepage.
 
 const TARGET_URL = "file:///home/diegral/Documents/hey-diego.html";
 const TARGET_PREFIX = "file:///home/diegral/Documents/hey-diego";
@@ -36,10 +36,36 @@ function isHomepage(tab) {
 }
 
 function isEmptyTab(tab) {
+  if (!tab) {
+    return true;
+  }
+  try {
+    // Zen's special empty tab for empty windows.
+    if (tab.hasAttribute("zen-empty-tab")) {
+      return true;
+    }
+  } catch (e) {}
   const uri = getURI(tab);
   return (
     !!uri && EMPTY_URIS.some((u) => uri === u || uri.startsWith(u + "?"))
   );
+}
+
+// DEBUG: last update() state, readable at chrome/resources/homepage-debug.log
+function debugLog(extra) {
+  try {
+    const b = window.gBrowser;
+    const line = JSON.stringify({
+      t: new Date().toISOString(),
+      selectedURI: b ? getURI(b.selectedTab) : null,
+      tabs: b ? b.tabs.length : -1,
+      zenEmptyAttr: b && b.selectedTab ? b.selectedTab.hasAttribute("zen-empty-tab") : null,
+      ...extra,
+    });
+    if (window.UC_API && UC_API.FileSystem && UC_API.FileSystem.writeFile) {
+      UC_API.FileSystem.writeFile("homepage-debug.log", line).catch(() => {});
+    }
+  } catch (e) {}
 }
 
 function loadHomepage(tab) {
@@ -62,6 +88,23 @@ function loadHomepage(tab) {
   }
 }
 
+function openHomepageTab() {
+  // No tabs at all: create one with the homepage.
+  try {
+    if (window.UC_API && UC_API.Utils && UC_API.Utils.loadURI) {
+      UC_API.Utils.loadURI(window, { url: TARGET_URL, where: "tab" });
+      return;
+    }
+  } catch (e) {
+    /* fall through */
+  }
+  try {
+    window.gBrowser.loadTabs([TARGET_URL], { createLazyBrowser: true });
+  } catch (e) {
+    /* pass */
+  }
+}
+
 function update() {
   try {
     const b = window.gBrowser;
@@ -70,14 +113,26 @@ function update() {
     }
     const selected = b.selectedTab;
 
-    // No real tab open (fresh new tab / all closed): open the homepage.
+    // No tabs at all, or the selected tab is an empty/new tab:
+    // open the homepage.
+    if (!selected || b.tabs.length === 0) {
+      debugLog({ action: "no-tabs-open-homepage" });
+      openHomepageTab();
+      return;
+    }
     if (isEmptyTab(selected)) {
+      debugLog({ action: "empty-tab-load-homepage" });
       loadHomepage(selected);
       // Retry once in case the first navigation raced tab creation.
       window.setTimeout(() => {
         try {
-          if (isEmptyTab(window.gBrowser.selectedTab)) {
-            loadHomepage(window.gBrowser.selectedTab);
+          const s = window.gBrowser.selectedTab;
+          if (!s || isEmptyTab(s)) {
+            if (!s || window.gBrowser.tabs.length === 0) {
+              openHomepageTab();
+            } else {
+              loadHomepage(s);
+            }
           }
         } catch (e) {}
       }, 750);
