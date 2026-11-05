@@ -40,7 +40,6 @@ function isEmptyTab(tab) {
     return true;
   }
   try {
-    // Zen's special empty tab for empty windows.
     if (tab.hasAttribute("zen-empty-tab")) {
       return true;
     }
@@ -51,19 +50,31 @@ function isEmptyTab(tab) {
   );
 }
 
-// DEBUG: last update() state, readable at chrome/resources/homepage-debug.log
+// DEBUG: visible notification + log file, so failures are observable.
 function debugLog(extra) {
+  let line = "";
   try {
     const b = window.gBrowser;
-    const line = JSON.stringify({
+    line = JSON.stringify({
       t: new Date().toISOString(),
       selectedURI: b ? getURI(b.selectedTab) : null,
       tabs: b ? b.tabs.length : -1,
-      zenEmptyAttr: b && b.selectedTab ? b.selectedTab.hasAttribute("zen-empty-tab") : null,
+      zenEmptyAttr:
+        b && b.selectedTab ? b.selectedTab.hasAttribute("zen-empty-tab") : null,
       ...extra,
     });
     if (window.UC_API && UC_API.FileSystem && UC_API.FileSystem.writeFile) {
       UC_API.FileSystem.writeFile("homepage-debug.log", line).catch(() => {});
+    }
+    if (typeof PathUtils !== "undefined") {
+      PathUtils.writeUTF8("/tmp/homepage-debug.log", line).catch(() => {});
+    }
+    if (window.UC_API && UC_API.Notifications && UC_API.Notifications.show) {
+      UC_API.Notifications.show({
+        label: "Homepage mod: " + (extra && extra.action ? extra.action : "update"),
+        type: "homepage-debug",
+        priority: "info",
+      }).catch(() => {});
     }
   } catch (e) {}
 }
@@ -73,7 +84,7 @@ function loadHomepage(tab) {
   try {
     if (window.UC_API && UC_API.Utils && UC_API.Utils.loadURI) {
       UC_API.Utils.loadURI(window, { url: TARGET_URL, where: "current" });
-      return;
+      return true;
     }
   } catch (e) {
     /* fall through */
@@ -83,13 +94,14 @@ function loadHomepage(tab) {
     window.gBrowser.loadURI(TARGET_URL, {
       triggeringPrincipal: Services.scriptSecurity.getSystemPrincipal(),
     });
+    return true;
   } catch (e) {
     /* pass */
   }
+  return false;
 }
 
 function openHomepageTab() {
-  // No tabs at all: create one with the homepage.
   try {
     if (window.UC_API && UC_API.Utils && UC_API.Utils.loadURI) {
       UC_API.Utils.loadURI(window, { url: TARGET_URL, where: "tab" });
@@ -185,6 +197,9 @@ function init() {
   } catch (e) {
     /* pass */
   }
+
+  // Safety net: check once a second (cheap reads, no timers beyond this).
+  window.setInterval(update, 1000);
 
   update();
 }
