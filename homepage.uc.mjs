@@ -18,27 +18,47 @@ const TARGET_URL = "file:///home/diegral/Documents/hey-diego.html";
 const TARGET_PREFIX = "file:///home/diegral/Documents/hey-diego";
 const EMPTY_URIS = ["about:newtab", "about:blank", "about:home"];
 
-function isHomepage(tab) {
+function getURI(tab) {
   try {
-    const uri =
+    return (
       tab.linkedBrowser &&
       tab.linkedBrowser.currentURI &&
-      tab.linkedBrowser.currentURI.spec;
-    return !!uri && uri.startsWith(TARGET_PREFIX);
+      tab.linkedBrowser.currentURI.spec
+    );
   } catch (e) {
-    return false;
+    return null;
   }
 }
 
+function isHomepage(tab) {
+  const uri = getURI(tab);
+  return !!uri && uri.startsWith(TARGET_PREFIX);
+}
+
 function isEmptyTab(tab) {
+  const uri = getURI(tab);
+  return (
+    !!uri && EMPTY_URIS.some((u) => uri === u || uri.startsWith(u + "?"))
+  );
+}
+
+function loadHomepage(tab) {
+  // Prefer Sine's own API (handles principals correctly in this scope).
   try {
-    const uri =
-      tab.linkedBrowser &&
-      tab.linkedBrowser.currentURI &&
-      tab.linkedBrowser.currentURI.spec;
-    return !!uri && EMPTY_URIS.some((u) => uri === u || uri.startsWith(u + "?"));
+    if (window.UC_API && UC_API.Utils && UC_API.Utils.loadURI) {
+      UC_API.Utils.loadURI(window, { url: TARGET_URL, where: "current" });
+      return;
+    }
   } catch (e) {
-    return false;
+    /* fall through */
+  }
+  // Fallback: gBrowser.loadURI with a system principal.
+  try {
+    window.gBrowser.loadURI(TARGET_URL, {
+      triggeringPrincipal: Services.scriptSecurity.getSystemPrincipal(),
+    });
+  } catch (e) {
+    /* pass */
   }
 }
 
@@ -52,9 +72,15 @@ function update() {
 
     // No real tab open (fresh new tab / all closed): open the homepage.
     if (isEmptyTab(selected)) {
-      b.loadURI(TARGET_URL, {
-        triggeringPrincipal: Services.scriptSecurity.getSystemPrincipal(),
-      });
+      loadHomepage(selected);
+      // Retry once in case the first navigation raced tab creation.
+      window.setTimeout(() => {
+        try {
+          if (isEmptyTab(window.gBrowser.selectedTab)) {
+            loadHomepage(window.gBrowser.selectedTab);
+          }
+        } catch (e) {}
+      }, 750);
       return;
     }
 
@@ -96,10 +122,11 @@ function init() {
     /* pass */
   }
 
-  // Tab switches and closes (last tab closed -> empty tab -> homepage)
+  // Tab switches, opens and closes (last tab closed -> empty tab -> homepage)
   try {
     window.gBrowser.tabContainer.addEventListener("TabSelect", update, false);
     window.gBrowser.tabContainer.addEventListener("TabClose", update, false);
+    window.gBrowser.tabContainer.addEventListener("TabOpen", update, false);
   } catch (e) {
     /* pass */
   }
