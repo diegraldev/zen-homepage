@@ -125,6 +125,18 @@ function update() {
     }
     const selected = b.selectedTab;
 
+    // DEBUG (temporary): encode live state into the window title so it can
+    // be read from outside (niri msg). Removed once diagnosed.
+    try {
+      const uri = selected ? getURI(selected) : "null";
+      const emptyAttr =
+        selected && selected.hasAttribute
+          ? selected.hasAttribute("zen-empty-tab")
+          : null;
+      document.title =
+        "DBG uri=" + uri + " tabs=" + b.tabs.length + " emptyAttr=" + emptyAttr;
+    } catch (e) {}
+
     // No tabs at all, or the selected tab is an empty/new tab:
     // open the homepage.
     if (!selected || b.tabs.length === 0) {
