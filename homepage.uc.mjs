@@ -2,6 +2,7 @@
 // @name           Better Zen Homepage Empty Mode
 // @description    On the local homepage: empty url bar and no open tab shown.
 //                 The homepage tab closes itself when another tab opens.
+//                 Empty/new tabs auto-open the homepage.
 // ==/UserScript==
 
 // Better Zen — homepage tweaks (Sine mod).
@@ -10,8 +11,12 @@
 // url bar and hide the open tab. The sidebar itself stays visible.
 // The homepage tab is transient: as soon as another tab is selected,
 // the homepage tab closes itself (unless pinned).
+// Empty tabs (about:newtab / about:blank / about:home) auto-open the
+// homepage, so closing everything lands back on it.
 
+const TARGET_URL = "file:///home/diegral/Documents/hey-diego.html";
 const TARGET_PREFIX = "file:///home/diegral/Documents/hey-diego";
+const EMPTY_URIS = ["about:newtab", "about:blank", "about:home"];
 
 function isHomepage(tab) {
   try {
@@ -25,6 +30,18 @@ function isHomepage(tab) {
   }
 }
 
+function isEmptyTab(tab) {
+  try {
+    const uri =
+      tab.linkedBrowser &&
+      tab.linkedBrowser.currentURI &&
+      tab.linkedBrowser.currentURI.spec;
+    return !!uri && EMPTY_URIS.some((u) => uri === u || uri.startsWith(u + "?"));
+  } catch (e) {
+    return false;
+  }
+}
+
 function update() {
   try {
     const b = window.gBrowser;
@@ -32,6 +49,15 @@ function update() {
       return;
     }
     const selected = b.selectedTab;
+
+    // No real tab open (fresh new tab / all closed): open the homepage.
+    if (isEmptyTab(selected)) {
+      b.loadURI(TARGET_URL, {
+        triggeringPrincipal: Services.scriptSecurity.getSystemPrincipal(),
+      });
+      return;
+    }
+
     const onHomepage = isHomepage(selected);
     document.documentElement.toggleAttribute("zen-homepage", onHomepage);
 
@@ -70,9 +96,10 @@ function init() {
     /* pass */
   }
 
-  // Tab switches
+  // Tab switches and closes (last tab closed -> empty tab -> homepage)
   try {
     window.gBrowser.tabContainer.addEventListener("TabSelect", update, false);
+    window.gBrowser.tabContainer.addEventListener("TabClose", update, false);
   } catch (e) {
     /* pass */
   }
