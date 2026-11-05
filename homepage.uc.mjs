@@ -128,11 +128,13 @@ function update() {
     // No tabs at all, or the selected tab is an empty/new tab:
     // open the homepage.
     if (!selected || b.tabs.length === 0) {
+      document.documentElement.setAttribute("zen-debug-empty", "true");
       debugLog({ action: "no-tabs-open-homepage" });
       openHomepageTab();
       return;
     }
     if (isEmptyTab(selected)) {
+      document.documentElement.setAttribute("zen-debug-empty", "true");
       debugLog({ action: "empty-tab-load-homepage" });
       loadHomepage(selected);
       // Retry once in case the first navigation raced tab creation.
@@ -153,6 +155,7 @@ function update() {
 
     const onHomepage = isHomepage(selected);
     document.documentElement.toggleAttribute("zen-homepage", onHomepage);
+    document.documentElement.removeAttribute("zen-debug-empty");
 
     // Transient homepage: when you leave it for another tab, it closes.
     if (!onHomepage) {
