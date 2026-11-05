@@ -4,11 +4,17 @@
   "description": "Empty url bar and no open tab shown on the local homepage (hey-diego.html). The homepage tab closes itself when another tab opens.",
   "version": "1.0.0",
   "author": "diego",
-  "homepage": "file:///home/diegral/Documents/hey-diego.html",
+  "homepage": "https://github.com/diegraldev/zen-homepage",
   "scripts": {
     "homepage.uc.mjs": {
-      "include": ["chrome://browser/content/browser.xhtml", "chrome://browser/content/browser.xul"]
+      "include": [
+        "chrome://browser/content/browser.xhtml",
+        "chrome://browser/content/browser.xul"
+      ]
     }
   },
-  "tags": ["Scripts", "Zen"]
+  "tags": [
+    "Scripts",
+    "Zen"
+  ]
 }
