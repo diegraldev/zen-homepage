@@ -80,18 +80,16 @@ function debugLog(extra) {
 
 function loadHomepage(tab) {
   const results = [];
-  // Method 1: open homepage in a fresh tab, then drop the empty one.
-  // (No Services / UC_API needed in this scope.)
+  // Trusted tab: chrome-initiated load, no principal needed.
+  // (Zen itself uses addTrustedTab for its empty tab.)
   try {
-    const nt = window.gBrowser.loadTabs([TARGET_URL], {
-      createLazyBrowser: false,
-    });
-    results.push("loadTabs=" + (nt ? "ok" : "null"));
-    if (tab && tab !== nt) {
+    const nt = window.gBrowser.addTrustedTab(TARGET_URL);
+    results.push("addTrustedTab=" + (nt ? "ok" : "null"));
+    if (nt && tab && tab !== nt) {
       window.gBrowser.removeTab(tab);
     }
   } catch (e) {
-    results.push("loadTabs=ERR:" + e.message);
+    results.push("addTrustedTab=ERR:" + e.message);
   }
   try {
     document.title += " | " + results.join(" ");
