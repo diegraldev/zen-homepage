@@ -50,12 +50,11 @@ function isEmptyTab(tab) {
   );
 }
 
-// DEBUG: visible notification + log file, so failures are observable.
+// DEBUG (temporary): visible notification + log file.
 function debugLog(extra) {
-  let line = "";
   try {
     const b = window.gBrowser;
-    line = JSON.stringify({
+    const line = JSON.stringify({
       t: new Date().toISOString(),
       selectedURI: b ? getURI(b.selectedTab) : null,
       tabs: b ? b.tabs.length : -1,
@@ -80,25 +79,43 @@ function debugLog(extra) {
 }
 
 function loadHomepage(tab) {
-  // Prefer Sine's own API (handles principals correctly in this scope).
+  const results = [];
+  // Method 1: Sine's own API.
   try {
     if (window.UC_API && UC_API.Utils && UC_API.Utils.loadURI) {
-      UC_API.Utils.loadURI(window, { url: TARGET_URL, where: "current" });
-      return true;
+      results.push(
+        "ucapi=" +
+          UC_API.Utils.loadURI(window, { url: TARGET_URL, where: "current" })
+      );
+    } else {
+      results.push("ucapi=NOAPI");
     }
   } catch (e) {
-    /* fall through */
+    results.push("ucapi=ERR:" + e.message);
   }
-  // Fallback: gBrowser.loadURI with a system principal.
+  // Method 2: gBrowser.loadURI with system principal.
   try {
     window.gBrowser.loadURI(TARGET_URL, {
       triggeringPrincipal: Services.scriptSecurity.getSystemPrincipal(),
     });
-    return true;
+    results.push("gbluri=ok");
   } catch (e) {
-    /* pass */
+    results.push("gbluri=ERR:" + e.message);
   }
-  return false;
+  // Method 3: open in a fresh tab, then drop the empty one.
+  try {
+    const nt = window.gBrowser.addTab(TARGET_URL);
+    results.push("addTab=" + (nt ? "ok" : "null"));
+    if (nt && tab && tab !== nt) {
+      window.gBrowser.removeTab(tab);
+    }
+  } catch (e) {
+    results.push("addTab=ERR:" + e.message);
+  }
+  try {
+    document.title += " | " + results.join(" ");
+  } catch (e) {}
+  return results;
 }
 
 function openHomepageTab() {
@@ -125,8 +142,7 @@ function update() {
     }
     const selected = b.selectedTab;
 
-    // DEBUG (temporary): encode live state into the window title so it can
-    // be read from outside (niri msg). Removed once diagnosed.
+    // DEBUG (temporary): live state in the window title (niri-readable).
     try {
       const uri = selected ? getURI(selected) : "null";
       const emptyAttr =
@@ -140,13 +156,11 @@ function update() {
     // No tabs at all, or the selected tab is an empty/new tab:
     // open the homepage.
     if (!selected || b.tabs.length === 0) {
-      document.documentElement.setAttribute("zen-debug-empty", "true");
       debugLog({ action: "no-tabs-open-homepage" });
       openHomepageTab();
       return;
     }
     if (isEmptyTab(selected)) {
-      document.documentElement.setAttribute("zen-debug-empty", "true");
       debugLog({ action: "empty-tab-load-homepage" });
       loadHomepage(selected);
       // Retry once in case the first navigation raced tab creation.
