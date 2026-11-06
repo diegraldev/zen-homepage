@@ -16,7 +16,11 @@
 
 const TARGET_URL = "file:///home/diegral/Documents/hey-diego.html";
 const TARGET_PREFIX = "file:///home/diegral/Documents/hey-diego";
-const EMPTY_URIS = ["about:newtab", "about:blank", "about:home"];
+// NOTE: about:blank is intentionally NOT here — every new tab is born as
+// about:blank before its real navigation, and hijacking those breaks
+// Ctrl+T / new-tab navigation. Only Zen's own empty tab (zen-empty-tab
+// attribute) and true new-tab pages count as "empty".
+const EMPTY_URIS = ["about:newtab", "about:home"];
 
 let loadingHomepage = false;
 

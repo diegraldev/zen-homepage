@@ -2,7 +2,7 @@
   "id": "better-zen-homepage",
   "name": "Better Zen Homepage",
   "description": "Empty url bar and no open tab shown on the local homepage (hey-diego.html). The homepage tab closes itself when another tab opens.",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "author": "diego",
   "homepage": "https://github.com/diegraldev/zen-homepage",
   "scripts": {
@@ -18,5 +18,5 @@
     "Zen"
   ],
   "createdAt": "2026-11-05",
-  "updatedAt": "2026-11-05T19:06:15-05:00"
+  "updatedAt": "2026-11-05T19:10:52-05:00"
 }
