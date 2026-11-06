@@ -18,6 +18,8 @@ const TARGET_URL = "file:///home/diegral/Documents/hey-diego.html";
 const TARGET_PREFIX = "file:///home/diegral/Documents/hey-diego";
 const EMPTY_URIS = ["about:newtab", "about:blank", "about:home"];
 
+let loadingHomepage = false;
+
 function getURI(tab) {
   try {
     return (
@@ -50,64 +52,55 @@ function isEmptyTab(tab) {
   );
 }
 
-// DEBUG (temporary): visible notification + log file.
-function debugLog(extra) {
-  try {
-    const b = window.gBrowser;
-    const line = JSON.stringify({
-      t: new Date().toISOString(),
-      selectedURI: b ? getURI(b.selectedTab) : null,
-      tabs: b ? b.tabs.length : -1,
-      zenEmptyAttr:
-        b && b.selectedTab ? b.selectedTab.hasAttribute("zen-empty-tab") : null,
-      ...extra,
-    });
-    if (window.UC_API && UC_API.FileSystem && UC_API.FileSystem.writeFile) {
-      UC_API.FileSystem.writeFile("homepage-debug.log", line).catch(() => {});
-    }
-    if (typeof PathUtils !== "undefined") {
-      PathUtils.writeUTF8("/tmp/homepage-debug.log", line).catch(() => {});
-    }
-    if (window.UC_API && UC_API.Notifications && UC_API.Notifications.show) {
-      UC_API.Notifications.show({
-        label: "Homepage mod: " + (extra && extra.action ? extra.action : "update"),
-        type: "homepage-debug",
-        priority: "info",
-      }).catch(() => {});
-    }
-  } catch (e) {}
-}
-
+// Navigate to the homepage exactly once per empty state: reuse an
+// existing homepage tab if there is one, otherwise create a trusted
+// tab (no principal needed) and select it, then drop the empty one.
 function loadHomepage(tab) {
-  const results = [];
-  // Trusted tab: chrome-initiated load, no principal needed.
-  // (Zen itself uses addTrustedTab for its empty tab.)
+  if (loadingHomepage) {
+    return;
+  }
+  loadingHomepage = true;
+  window.setTimeout(() => {
+    loadingHomepage = false;
+  }, 2000);
+
+  const b = window.gBrowser;
   try {
-    const nt = window.gBrowser.addTrustedTab(TARGET_URL);
-    results.push("addTrustedTab=" + (nt ? "ok" : "null"));
-    if (nt && tab && tab !== nt) {
-      window.gBrowser.removeTab(tab);
+    const existing = b.tabs.find((t) => isHomepage(t));
+    if (existing) {
+      if (existing !== b.selectedTab) {
+        b.selectedTab = existing;
+      }
+      if (tab && tab !== existing) {
+        b.removeTab(tab);
+      }
+      return;
+    }
+    const nt = b.addTrustedTab(TARGET_URL);
+    if (nt) {
+      b.selectedTab = nt;
+      if (tab && tab !== nt) {
+        b.removeTab(tab);
+      }
     }
   } catch (e) {
-    results.push("addTrustedTab=ERR:" + e.message);
+    /* never break the browser chrome */
   }
-  try {
-    document.title += " | " + results.join(" ");
-  } catch (e) {}
-  return results;
 }
 
 function openHomepageTab() {
-  try {
-    if (window.UC_API && UC_API.Utils && UC_API.Utils.loadURI) {
-      UC_API.Utils.loadURI(window, { url: TARGET_URL, where: "tab" });
-      return;
-    }
-  } catch (e) {
-    /* fall through */
+  if (loadingHomepage) {
+    return;
   }
+  loadingHomepage = true;
+  window.setTimeout(() => {
+    loadingHomepage = false;
+  }, 2000);
   try {
-    window.gBrowser.loadTabs([TARGET_URL], { createLazyBrowser: true });
+    const nt = window.gBrowser.addTrustedTab(TARGET_URL);
+    if (nt) {
+      window.gBrowser.selectedTab = nt;
+    }
   } catch (e) {
     /* pass */
   }
@@ -121,46 +114,19 @@ function update() {
     }
     const selected = b.selectedTab;
 
-    // DEBUG (temporary): live state in the window title (niri-readable).
-    try {
-      const uri = selected ? getURI(selected) : "null";
-      const emptyAttr =
-        selected && selected.hasAttribute
-          ? selected.hasAttribute("zen-empty-tab")
-          : null;
-      document.title =
-        "DBG uri=" + uri + " tabs=" + b.tabs.length + " emptyAttr=" + emptyAttr;
-    } catch (e) {}
-
     // No tabs at all, or the selected tab is an empty/new tab:
     // open the homepage.
     if (!selected || b.tabs.length === 0) {
-      debugLog({ action: "no-tabs-open-homepage" });
       openHomepageTab();
       return;
     }
     if (isEmptyTab(selected)) {
-      debugLog({ action: "empty-tab-load-homepage" });
       loadHomepage(selected);
-      // Retry once in case the first navigation raced tab creation.
-      window.setTimeout(() => {
-        try {
-          const s = window.gBrowser.selectedTab;
-          if (!s || isEmptyTab(s)) {
-            if (!s || window.gBrowser.tabs.length === 0) {
-              openHomepageTab();
-            } else {
-              loadHomepage(s);
-            }
-          }
-        } catch (e) {}
-      }, 750);
       return;
     }
 
     const onHomepage = isHomepage(selected);
     document.documentElement.toggleAttribute("zen-homepage", onHomepage);
-    document.documentElement.removeAttribute("zen-debug-empty");
 
     // Transient homepage: when you leave it for another tab, it closes.
     if (!onHomepage) {
