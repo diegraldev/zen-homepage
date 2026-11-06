@@ -80,37 +80,18 @@ function debugLog(extra) {
 
 function loadHomepage(tab) {
   const results = [];
-  // Method 1: Sine's own API.
+  // Method 1: open homepage in a fresh tab, then drop the empty one.
+  // (No Services / UC_API needed in this scope.)
   try {
-    if (window.UC_API && UC_API.Utils && UC_API.Utils.loadURI) {
-      results.push(
-        "ucapi=" +
-          UC_API.Utils.loadURI(window, { url: TARGET_URL, where: "current" })
-      );
-    } else {
-      results.push("ucapi=NOAPI");
-    }
-  } catch (e) {
-    results.push("ucapi=ERR:" + e.message);
-  }
-  // Method 2: gBrowser.loadURI with system principal.
-  try {
-    window.gBrowser.loadURI(TARGET_URL, {
-      triggeringPrincipal: Services.scriptSecurity.getSystemPrincipal(),
+    const nt = window.gBrowser.loadTabs([TARGET_URL], {
+      createLazyBrowser: false,
     });
-    results.push("gbluri=ok");
-  } catch (e) {
-    results.push("gbluri=ERR:" + e.message);
-  }
-  // Method 3: open in a fresh tab, then drop the empty one.
-  try {
-    const nt = window.gBrowser.addTab(TARGET_URL);
-    results.push("addTab=" + (nt ? "ok" : "null"));
-    if (nt && tab && tab !== nt) {
+    results.push("loadTabs=" + (nt ? "ok" : "null"));
+    if (tab && tab !== nt) {
       window.gBrowser.removeTab(tab);
     }
   } catch (e) {
-    results.push("addTab=ERR:" + e.message);
+    results.push("loadTabs=ERR:" + e.message);
   }
   try {
     document.title += " | " + results.join(" ");
