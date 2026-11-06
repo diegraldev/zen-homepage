@@ -11,8 +11,8 @@
 // url bar and hide the open tab. The sidebar itself stays visible.
 // The homepage tab is transient: as soon as another tab is selected,
 // the homepage tab closes itself (unless pinned).
-// Empty tabs (about:newtab / about:blank / about:home, Zen's special
-// zen-empty-tab, or no tabs at all) auto-open the homepage.
+// Zen's special empty tab (zen-empty-tab attribute) and true new-tab
+// pages auto-open the homepage, so closing everything lands back on it.
 
 const TARGET_URL = "file:///home/diegral/Documents/hey-diego.html";
 const TARGET_PREFIX = "file:///home/diegral/Documents/hey-diego";
@@ -175,9 +175,6 @@ function init() {
   } catch (e) {
     /* pass */
   }
-
-  // Safety net: check once a second (cheap reads, no timers beyond this).
-  window.setInterval(update, 1000);
 
   update();
 }
