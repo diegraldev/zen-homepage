@@ -1,3 +1,5 @@
+![Demo](demo.png)
+
 # Better Zen Homepage
 
 Sine mod for Zen Browser. Makes a local homepage (`hey-diego.html`) behave
